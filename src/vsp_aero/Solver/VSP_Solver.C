@@ -29381,6 +29381,11 @@ void VSP_SOLVER::IntegrateForcesAndMoments(void)
     double DeltaDrag, DeltaFxo, DeltaFyo, DeltaFzo, ReFact;
     double Cli, Cdi, Csi;
     double WettedArea, FR, Length, ForceDir[3];
+   const double kEps = 1.0e-14;
+   int WarnedBadStripGeom = 0;
+   int WarnedBadStripDenom = 0;
+   int WarnedBadBodyFR = 0;
+   int WarnedBadStripForce = 0;
 
     CA = cos(AngleOfAttack_);
     SA = sin(AngleOfAttack_);
@@ -29799,6 +29804,18 @@ void VSP_SOLVER::IntegrateForcesAndMoments(void)
           SVec[2] = CVec[2] = VSPGeom().Grid(MGLevel_).EdgeList(TE_Edge).Zc() - VSPGeom().Grid(MGLevel_).EdgeList(LE_Edge).Zc(); 
           
           Mag = sqrt(vector_dot(SVec,SVec));
+
+          if ( !std::isfinite(Mag) || Mag <= kEps ) {
+             if ( !WarnedBadStripGeom ) {
+                std::cout << "[ALERT] Bad strip geometry before SVec normalization: "
+                          << "Time=" << Time_ << " k=" << k << " i=" << i
+                          << " Mag=" << Mag << " Chord=" << Chord
+                          << " LE_Edge=" << LE_Edge << " TE_Edge=" << TE_Edge << std::endl;
+                fflush(stdout);
+                WarnedBadStripGeom = 1;
+             }
+             continue;
+          }
           
           SVec[0] /= Mag;                              
           SVec[1] /= Mag;                              
@@ -29816,7 +29833,19 @@ void VSP_SOLVER::IntegrateForcesAndMoments(void)
           vector_cross(CVec,TVec,AVec);
           
           Area = sqrt(vector_dot(AVec,AVec));
-          
+
+          if ( !std::isfinite(Chord) || Chord <= kEps ) {
+             if ( !WarnedBadStripGeom ) {
+                std::cout << "[ALERT] Bad strip chord before Span=Area/Chord: "
+                          << "Time=" << Time_ << " k=" << k << " i=" << i
+                          << " Chord=" << Chord << " Area=" << Area
+                          << " LE_Edge=" << LE_Edge << " TE_Edge=" << TE_Edge << std::endl;
+                fflush(stdout);
+                WarnedBadStripGeom = 1;
+             }
+             continue;
+          }
+
           Span = Area/Chord;
           
           VSPGeom().VortexSheet(k).TrailingVortex(i).LocalSpan() = Span;
@@ -29824,6 +29853,18 @@ void VSP_SOLVER::IntegrateForcesAndMoments(void)
           StallFactor = 1. - VSPGeom().VortexSheet(k).TrailingVortex(i).StallFactor();
 
           Gamma = VSPGeom().Grid(MGLevel_).EdgeList(TE_Edge).Gamma();
+
+          if ( !std::isfinite(Velocity) || Velocity <= kEps ) {
+             if ( !WarnedBadStripDenom ) {
+                std::cout << "[ALERT] Bad strip velocity before Cl calc: "
+                          << "Time=" << Time_ << " k=" << k << " i=" << i
+                          << " Velocity=" << Velocity << " Chord=" << Chord
+                          << " Gamma=" << Gamma << std::endl;
+                fflush(stdout);
+                WarnedBadStripDenom = 1;
+             }
+             continue;
+          }
 
           Cl = ABS(Gamma/(0.5*Velocity*Chord));
 
@@ -29837,6 +29878,19 @@ void VSP_SOLVER::IntegrateForcesAndMoments(void)
 
           Cf = 1.5 / pow(log10(Re),2.58) + pCf_pCl2*pow(Cl-Clo_2d_, 2.);
 
+          if ( !std::isfinite(Cf) ) {
+             if ( !WarnedBadStripDenom ) {
+                std::cout << "[ALERT] Non-finite Cf on strip: "
+                          << "Time=" << Time_ << " k=" << k << " i=" << i
+                          << " Re=" << Re << " Cl=" << Cl
+                          << " Clo_2d_=" << Clo_2d_ << " pCf_pCl2=" << pCf_pCl2
+                          << std::endl;
+                fflush(stdout);
+                WarnedBadStripDenom = 1;
+             }
+             continue;
+          }
+
           // Kludge for stall
           
           Cf *= 1. + 100.*StallFactor;
@@ -29846,6 +29900,19 @@ void VSP_SOLVER::IntegrateForcesAndMoments(void)
           Fxo = 0.5 * Cf * Velocity * Velocity * Chord * Span * SVec[0];
           Fyo = 0.5 * Cf * Velocity * Velocity * Chord * Span * SVec[1];
           Fzo = 0.5 * Cf * Velocity * Velocity * Chord * Span * SVec[2];
+
+          if ( !std::isfinite(Fxo) || !std::isfinite(Fyo) || !std::isfinite(Fzo) ) {
+             if ( !WarnedBadStripForce ) {
+                std::cout << "[ALERT] Non-finite viscous strip force: "
+                          << "Time=" << Time_ << " k=" << k << " i=" << i
+                          << " F=[" << Fxo << "," << Fyo << "," << Fzo << "]"
+                          << " Cf=" << Cf << " Velocity=" << Velocity
+                          << " Chord=" << Chord << " Span=" << Span << std::endl;
+                fflush(stdout);
+                WarnedBadStripForce = 1;
+             }
+             continue;
+          }
 
           CFox_ += Fxo;
           CFoy_ += Fyo;
@@ -29959,6 +30026,18 @@ void VSP_SOLVER::IntegrateForcesAndMoments(void)
           // Fineness ratio
           
           FR = VSPGeom().ComponentFineNessRatio(i);
+
+          if ( !std::isfinite(FR) || FR <= kEps ) {
+             if ( !WarnedBadBodyFR ) {
+                std::cout << "[ALERT] Bad fineness ratio in body drag model: "
+                          << "Time=" << Time_ << " Component=" << i
+                          << " FR=" << FR << " Length=" << Length
+                          << " WettedArea=" << WettedArea << std::endl;
+                fflush(stdout);
+                WarnedBadBodyFR = 1;
+             }
+             FR = 1.0e-6;
+          }
           
           // Local Reynold's number
           
@@ -29967,6 +30046,17 @@ void VSP_SOLVER::IntegrateForcesAndMoments(void)
           // Local turbulent skin friction
                   
           Cf = 0.30/ pow(log10(Re),2.58) * (1. + 1.5/pow(FR,1.5) + 7./pow(FR,3.));
+
+          if ( !std::isfinite(Cf) ) {
+             if ( !WarnedBadBodyFR ) {
+                std::cout << "[ALERT] Non-finite body Cf: "
+                          << "Time=" << Time_ << " Component=" << i
+                          << " FR=" << FR << " Re=" << Re << std::endl;
+                fflush(stdout);
+                WarnedBadBodyFR = 1;
+             }
+             continue;
+          }
       
           // Viscous Forces
            
@@ -30048,15 +30138,16 @@ void VSP_SOLVER::IntegrateForcesAndMoments(void)
              DeltaFzo = DeltaDrag * FreeStreamVelocity_[2] / Vinf_;
              
              // DEBUG: Print all variables if TimeAccurate_
-			 if ( TimeAccurate_ ) {
-   			 std::cout << "[DEBUG] FlatPlateDrag NaN detected - Group " << c;
-   			 std::cout << ": DeltaArea=" << VSPGeom().ComponentGroupList(c).DeltaFlatPlateDragArea();
-   			 std::cout << " ReCref=" << ReCref_ << " RefReNum=" << VSPGeom().ComponentGroupList(c).FlatPlateDragRefReNumber();
-   			 std::cout << " ReFact=" << ReFact << " Vinf=" << Vinf_;
-   			 std::cout << " FSVel=[" << FreeStreamVelocity_[0] << "," << FreeStreamVelocity_[1] << "," << FreeStreamVelocity_[2] << "]";
-   			 std::cout << " DeltaF=[" << DeltaFxo << "," << DeltaFyo << "," << DeltaFzo << "]\n";
-   			 fflush(stdout);
-			 }             
+             if ( TimeAccurate_ ) {
+                std::cout << "[DEBUG] FlatPlateDrag detected - Group " << c
+                          << ": DeltaArea=" << VSPGeom().ComponentGroupList(c).DeltaFlatPlateDragArea()
+                          << " ReCref=" << ReCref_ << " RefReNum=" << VSPGeom().ComponentGroupList(c).FlatPlateDragRefReNumber()
+                          << " ReFact=" << ReFact << " Vinf=" << Vinf_
+                          << " FSVel=[" << FreeStreamVelocity_[0] << "," << FreeStreamVelocity_[1] << "," << FreeStreamVelocity_[2] << "]"
+                          << " DeltaF=[" << DeltaFxo << "," << DeltaFyo << "," << DeltaFzo << "]" << std::endl;
+                fflush(stdout);
+             }
+
              CFox_ += DeltaFxo;
              CFoy_ += DeltaFyo;
              CFoz_ += DeltaFzo;
