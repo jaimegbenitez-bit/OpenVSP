@@ -30006,12 +30006,36 @@ void VSP_SOLVER::IntegrateForcesAndMoments(void)
     // Add in any flat plate drag areas
     
     if ( Vinf_ > 0. ) {
+    
+       // DEBUG: Check for NaN/Inf values at start of flat plate drag block
+       if ( std::isnan(CFox_) || std::isnan(CFoy_) || std::isnan(CFoz_) ||
+            !std::isfinite(CFox_) || !std::isfinite(CFoy_) || !std::isfinite(CFoz_) ) {
+          std::cout << "[ALERT] Flat Plate Drag block entry - Force NaN/Inf detected:" << std::endl
+                    << "  CFox_=" << CFox_ << " CFoy_=" << CFoy_ << " CFoz_=" << CFoz_ << std::endl
+                    << "  TimeAccurate_=" << TimeAccurate_ << " Time_=" << Time_ << std::endl;
+          fflush(stdout);
+       }
        
        for ( c = 0 ; c <= VSPGeom().NumberOfComponentGroups() ; c++ ) {
+       
+          // Check DeltaFlatPlateDragArea for NaN/Inf per component group
+          if ( VSPGeom().ComponentGroupList(c).DeltaFlatPlateDragArea() > 0. ) {
+             if ( std::isnan(VSPGeom().ComponentGroupList(c).DeltaFlatPlateDragArea()) ||
+                  !std::isfinite(VSPGeom().ComponentGroupList(c).DeltaFlatPlateDragArea()) ) {
+                std::cout << "[ALERT] Group " << c << ": DeltaFlatPlateDragArea NaN/Inf = "
+                          << VSPGeom().ComponentGroupList(c).DeltaFlatPlateDragArea() << std::endl;
+                fflush(stdout);
+             }
+          }
           
           if ( VSPGeom().ComponentGroupList(c).FlatPlateDragRefReNumber() > 0. ) {
              
-             ReFact = pow(log10(VSPGeom().ComponentGroupList(c).FlatPlateDragRefReNumber()),2.58) / pow(log10(ReCref_),2.58);
+             // Guard against -nan(ind) by ensuring ReCref_ and FlatPlateDragRefReNumber are > 1.0
+             if ( VSPGeom().ComponentGroupList(c).FlatPlateDragRefReNumber() > 1.0 && ReCref_ > 1.0 ) {
+                ReFact = pow(log10(VSPGeom().ComponentGroupList(c).FlatPlateDragRefReNumber()),2.58) / pow(log10(ReCref_),2.58);
+             } else {
+                ReFact = 1.0;
+             }
              
              DeltaDrag = VSPGeom().ComponentGroupList(c).DeltaFlatPlateDragArea() * ReFact * 0.5*Vref_*Vref_;
              
@@ -30019,13 +30043,32 @@ void VSP_SOLVER::IntegrateForcesAndMoments(void)
              DeltaFyo = DeltaDrag * FreeStreamVelocity_[1] / Vinf_;
              DeltaFzo = DeltaDrag * FreeStreamVelocity_[2] / Vinf_;
              
+             // DEBUG: Print all variables if TimeAccurate_
+             if ( TimeAccurate_ ) {
+                std::cout << "[DEBUG] FlatPlateDrag NaN detected - Group " << c
+                          << ": DeltaArea=" << VSPGeom().ComponentGroupList(c).DeltaFlatPlateDragArea()
+                          << " ReCref=" << ReCref_ << " RefReNum=" << VSPGeom().ComponentGroupList(c).FlatPlateDragRefReNumber()
+                          << " ReFact=" << ReFact << " Vinf=" << Vinf_
+                          << " FSVel=[" << FreeStreamVelocity_[0] << "," << FreeStreamVelocity_[1] << "," << FreeStreamVelocity_[2] << "]"
+                          << " DeltaF=[" << DeltaFxo << "," << DeltaFyo << "," << DeltaFzo << "]" << std::endl;
+                fflush(stdout);
+             }
+             
              CFox_ += DeltaFxo;
-             CFox_ += DeltaFyo;
-             CFoy_ += DeltaFzo;
+             CFoy_ += DeltaFyo;
+             CFoz_ += DeltaFzo;
              
              VSPGeom().ComponentGroupList(c).CFox() += DeltaFxo;
              VSPGeom().ComponentGroupList(c).CFoy() += DeltaFyo;
              VSPGeom().ComponentGroupList(c).CFoz() += DeltaFzo;
+             
+             if ( TimeAccurate_ ) {
+             
+                VSPGeom().ComponentGroupList(c).CFox(Time_) += DeltaFxo;
+                VSPGeom().ComponentGroupList(c).CFoy(Time_) += DeltaFyo;
+                VSPGeom().ComponentGroupList(c).CFoz(Time_) += DeltaFzo;
+
+             }
              
           }
           
