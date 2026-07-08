@@ -8,7 +8,8 @@
 
 #include "START_NAME_SPACE.H"
 
-/*##############################################################################
+/*######################################################################
+########
 #                                                                              #
 #                      Allocate space for statics                              #
 #                                                                              #
@@ -30044,16 +30045,15 @@ void VSP_SOLVER::IntegrateForcesAndMoments(void)
              DeltaFzo = DeltaDrag * FreeStreamVelocity_[2] / Vinf_;
              
              // DEBUG: Print all variables if TimeAccurate_
-             if ( TimeAccurate_ ) {
-                std::cout << "[DEBUG] FlatPlateDrag NaN detected - Group " << c
-                          << ": DeltaArea=" << VSPGeom().ComponentGroupList(c).DeltaFlatPlateDragArea()
-                          << " ReCref=" << ReCref_ << " RefReNum=" << VSPGeom().ComponentGroupList(c).FlatPlateDragRefReNumber()
-                          << " ReFact=" << ReFact << " Vinf=" << Vinf_
-                          << " FSVel=[" << FreeStreamVelocity_[0] << "," << FreeStreamVelocity_[1] << "," << FreeStreamVelocity_[2] << "]"
-                          << " DeltaF=[" << DeltaFxo << "," << DeltaFyo << "," << DeltaFzo << "]" << std::endl;
-                fflush(stdout);
-             }
-             
+			 if ( TimeAccurate_ ) {
+   			 std::cout << "[DEBUG] FlatPlateDrag NaN detected - Group " << c;
+   			 std::cout << ": DeltaArea=" << VSPGeom().ComponentGroupList(c).DeltaFlatPlateDragArea();
+   			 std::cout << " ReCref=" << ReCref_ << " RefReNum=" << VSPGeom().ComponentGroupList(c).FlatPlateDragRefReNumber();
+   			 std::cout << " ReFact=" << ReFact << " Vinf=" << Vinf_;
+   			 std::cout << " FSVel=[" << FreeStreamVelocity_[0] << "," << FreeStreamVelocity_[1] << "," << FreeStreamVelocity_[2] << "]";
+   			 std::cout << " DeltaF=[" << DeltaFxo << "," << DeltaFyo << "," << DeltaFzo << "]\n";
+   			 fflush(stdout);
+			 }             
              CFox_ += DeltaFxo;
              CFoy_ += DeltaFyo;
              CFoz_ += DeltaFzo;
