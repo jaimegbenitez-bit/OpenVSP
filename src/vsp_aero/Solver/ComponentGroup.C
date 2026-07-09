@@ -6,7 +6,92 @@
 
 #include "ComponentGroup.H"
 
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+
 #include "START_NAME_SPACE.H"
+
+namespace {
+
+int VSPAERO_NaNTraceEnabled()
+{
+   static int Initialized = 0;
+   static int Enabled = 0;
+
+   if ( !Initialized ) {
+      const char* Env = getenv("VSPAERO_NAN_TRACE");
+      Enabled = ( Env != NULL && Env[0] != '\0' && Env[0] != '0' );
+      Initialized = 1;
+   }
+
+   return Enabled;
+}
+
+void VSPAERO_PrintQuatTrace(const char* Label, COMPONENT_GROUP& Group, double DeltaTime, double CurrentTime)
+{
+   if ( !VSPAERO_NaNTraceEnabled() ) {
+      return;
+   }
+
+   static int Reports = 0;
+
+   if ( Reports >= 40 ) {
+      return;
+   }
+
+   ++Reports;
+
+   printf("[NAN_TRACE][ComponentGroup] %s | Group=%s Dyn=%d Fixed=%d Rotor=%d dt=%g t=%g Omega=%g RVec=(%g,%g,%g)\\n",
+         Label,
+         Group.GroupName(),
+         Group.GeometryIsDynamic(),
+         Group.GeometryIsFixed(),
+         Group.GeometryIsARotor(),
+         DeltaTime,
+         CurrentTime,
+         Group.Omega(),
+         Group.RVec(0),
+         Group.RVec(1),
+         Group.RVec(2));
+   fflush(stdout);
+}
+
+int VSPAERO_FormRotationQuatSafe(QUAT& Quat, const double* Vec, double Theta, COMPONENT_GROUP& Group, double DeltaTime, double CurrentTime, const char* Label)
+{
+   const double Dot = sqrt(Vec[0] * Vec[0] + Vec[1] * Vec[1] + Vec[2] * Vec[2]);
+
+   if ( !std::isfinite(Theta) || !std::isfinite(Dot) || Dot <= 1.0e-14 ) {
+
+      VSPAERO_PrintQuatTrace(Label, Group, DeltaTime, CurrentTime);
+
+      // Identity rotation is the safest fallback for instrumentation runs.
+      Quat(0) = 0.;
+      Quat(1) = 0.;
+      Quat(2) = 0.;
+      Quat(3) = 1.;
+
+      return 0;
+   }
+
+   Quat.FormRotationQuat(const_cast<double*>(Vec), Theta);
+
+   if ( !std::isfinite(Quat(0)) || !std::isfinite(Quat(1)) || !std::isfinite(Quat(2)) || !std::isfinite(Quat(3)) ) {
+
+      VSPAERO_PrintQuatTrace("FormRotationQuat produced non-finite", Group, DeltaTime, CurrentTime);
+
+      Quat(0) = 0.;
+      Quat(1) = 0.;
+      Quat(2) = 0.;
+      Quat(3) = 1.;
+
+      return 0;
+   }
+
+   return 1;
+}
+
+}
 
 /*##############################################################################
 #                                                                              #
@@ -598,7 +683,7 @@ void COMPONENT_GROUP::Update(void)
        
        Angle = 0.;
        
-       Quat_.FormRotationQuat(RVec_,Angle);
+      VSPAERO_FormRotationQuatSafe(Quat_, RVec_, Angle, *this, 0., 0., "Update() invalid rotation axis");
        
        InvQuat_ = Quat_;
        
@@ -721,7 +806,7 @@ void COMPONENT_GROUP::UpdateSteadyRates(void)
     
     Angle_ = Omega_ * DeltaTime_;
 
-    Quat_.FormRotationQuat(RVec_,Angle_);
+   VSPAERO_FormRotationQuatSafe(Quat_, RVec_, Angle_, *this, DeltaTime_, CurrentTime_, "UpdateSteadyRates() invalid rotation axis");
    
     InvQuat_ = Quat_;
    
@@ -778,7 +863,7 @@ void COMPONENT_GROUP::UpdateQuaternions(double DeltaTime)
 
     Angle_ = Omega_ * DeltaTime;
 
-    Quat_.FormRotationQuat(RVec_,Angle_);
+   VSPAERO_FormRotationQuatSafe(Quat_, RVec_, Angle_, *this, DeltaTime, CurrentTime_, "UpdateQuaternions() invalid rotation axis");
    
     InvQuat_ = Quat_;
    
@@ -830,7 +915,7 @@ void COMPONENT_GROUP::UpdatePeriodicRates(void)
             
     // Quaternion for this rotation, and it's inverse
 
-    Quat_.FormRotationQuat(RVec_,DeltaAngle);
+   VSPAERO_FormRotationQuatSafe(Quat_, RVec_, DeltaAngle, *this, DeltaTime_, CurrentTime_, "UpdatePeriodicRates() invalid rotation axis");
     
     InvQuat_ = Quat_;
    
@@ -971,7 +1056,7 @@ void COMPONENT_GROUP::UpdateDynamicSystem(void)
        
     }
     
-    Quat_.FormRotationQuat(RVec_, Dot);
+   VSPAERO_FormRotationQuatSafe(Quat_, RVec_, Dot, *this, DeltaTime_, CurrentTime_, "UpdateDynamicSystem() invalid delta-rotation axis");
 
     InvQuat_ = Quat_;
 

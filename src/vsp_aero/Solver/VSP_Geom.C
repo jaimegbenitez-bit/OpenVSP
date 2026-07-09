@@ -6,7 +6,53 @@
 
 #include "VSP_Geom.H"
 
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+
 #include "START_NAME_SPACE.H"
+
+namespace {
+
+int VSPAERO_NaNTraceEnabled()
+{
+   static int Initialized = 0;
+   static int Enabled = 0;
+
+   if ( !Initialized ) {
+      const char* Env = getenv("VSPAERO_NAN_TRACE");
+      Enabled = ( Env != NULL && Env[0] != '\0' && Env[0] != '0' );
+      Initialized = 1;
+   }
+
+   return Enabled;
+}
+
+void VSPAERO_ReportWakeNodeTrace(int Sheet, int Trail, int WakeIdx, int GlobalNode, double WX, double WY, double WZ, VSP_NODE& TENode)
+{
+   static int Reports = 0;
+
+   if ( Reports >= 120 ) {
+      return;
+   }
+
+   ++Reports;
+
+   printf("[NAN_TRACE][WakeGrid] non-finite wake node from trailing vortex | sheet=%d trail=%d wakeIdx=%d globalNode=%d wake=(%g,%g,%g) te=(%g,%g,%g)\\n",
+         Sheet,
+         Trail,
+         WakeIdx,
+         GlobalNode,
+         WX,
+         WY,
+         WZ,
+         TENode.x(),
+         TENode.y(),
+         TENode.z());
+   fflush(stdout);
+}
+
+}
 
 /*##############################################################################
 #                                                                              #
@@ -6682,15 +6728,32 @@ void VSP_GEOM::InitializeWakeGrid(double Vinf,
 
              Node = Grid(SolveOnMGLevel_).NodeList(Node).FineGridNode();
                             
-             Grid(0).NodeList(Node).x() = TrailingVortex.WakeNodeX(i);
-             Grid(0).NodeList(Node).y() = TrailingVortex.WakeNodeY(i);
-             Grid(0).NodeList(Node).z() = TrailingVortex.WakeNodeZ(i);
+             double WakeX = TrailingVortex.WakeNodeX(i);
+             double WakeY = TrailingVortex.WakeNodeY(i);
+             double WakeZ = TrailingVortex.WakeNodeZ(i);
+
+             if ( !std::isfinite(WakeX) || !std::isfinite(WakeY) || !std::isfinite(WakeZ) ) {
+
+                if ( VSPAERO_NaNTraceEnabled() ) {
+                   VSPAERO_ReportWakeNodeTrace(k, j, i, Node, WakeX, WakeY, WakeZ, VSP_Node1);
+                }
+
+                // Keep the wake node on the TE node so diagnostics can continue.
+                WakeX = VSP_Node1.x();
+                WakeY = VSP_Node1.y();
+                WakeZ = VSP_Node1.z();
+
+             }
+
+             Grid(0).NodeList(Node).x() = WakeX;
+             Grid(0).NodeList(Node).y() = WakeY;
+             Grid(0).NodeList(Node).z() = WakeZ;
 
              // Update trailing vortex data
              
-             VortexSheet(k).TrailingVortex(j).WakeNodeX(i) = TrailingVortex.WakeNodeX(i);
-             VortexSheet(k).TrailingVortex(j).WakeNodeY(i) = TrailingVortex.WakeNodeY(i);
-             VortexSheet(k).TrailingVortex(j).WakeNodeZ(i) = TrailingVortex.WakeNodeZ(i);
+             VortexSheet(k).TrailingVortex(j).WakeNodeX(i) = WakeX;
+             VortexSheet(k).TrailingVortex(j).WakeNodeY(i) = WakeY;
+             VortexSheet(k).TrailingVortex(j).WakeNodeZ(i) = WakeZ;
 
 
           }
