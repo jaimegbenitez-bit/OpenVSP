@@ -990,10 +990,30 @@ void COMPONENT_GROUP::UpdateDynamicSystem(void)
     LinearMomentum_(3) += DeltaTime_ * Force(3);
 
     // Velocity
-    
-    Velocity_(1) = LinearMomentum_(1) / Mass_;
-    Velocity_(2) = LinearMomentum_(2) / Mass_;
-    Velocity_(3) = LinearMomentum_(3) / Mass_;
+    // Guard against zero mass (e.g. group configured as FULL_DYNAMIC but mass not set).
+    // A zero or negative mass would produce NaN/Inf velocities that contaminate all node
+    // coordinates for this component group on the very first timestep.
+
+    if ( Mass_ > 1.0e-30 ) {
+
+       Velocity_(1) = LinearMomentum_(1) / Mass_;
+       Velocity_(2) = LinearMomentum_(2) / Mass_;
+       Velocity_(3) = LinearMomentum_(3) / Mass_;
+
+    }
+    else {
+
+       if ( VSPAERO_NaNTraceEnabled() ) {
+          printf("[NAN_TRACE][UpdateDynamicSystem] Mass_=%g is zero or near-zero for group '%s' — clamping velocity to zero\n",
+                 Mass_, GroupName_);
+          fflush(stdout);
+       }
+
+       Velocity_(1) = 0.;
+       Velocity_(2) = 0.;
+       Velocity_(3) = 0.;
+
+    }
 
     // Translations
     
@@ -1062,9 +1082,11 @@ void COMPONENT_GROUP::UpdateDynamicSystem(void)
 
     InvQuat_.FormInverse();   
 
-    // Quaternion rates, again for the current time step
-    
-    WQuat_ = Omega * DQuat * InvDQuat_; 
+    // Quaternion rates, again for the current time step.
+    // InvDQuat_ is a local variable; compute it from DQuat before use.
+    QUAT InvDQuat_Computed = DQuat;
+    InvDQuat_Computed.FormInverse();
+    WQuat_ = Omega * DQuat * InvDQuat_Computed; 
     
     // Partial of WQuat wrt omega
     
