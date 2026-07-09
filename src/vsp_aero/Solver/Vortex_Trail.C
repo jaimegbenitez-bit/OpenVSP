@@ -1,5 +1,7 @@
 #include "Vortex_Trail.H"
 
+#include <cmath>
+
 #include "START_NAME_SPACE.H"
 
 /*##############################################################################
@@ -609,6 +611,8 @@ void VORTEX_TRAIL::UpdateWakeLocation(double WakeRelax, double &ResMax, double &
     int i;
     double Vec[3], Mag, dS, Residual[3], Relax;
     double Vec3[3], Dir[3], Dot, Dot1, Dot2, VecTemp[3];
+   const double kEps = 1.0e-14;
+   static int WarnedInvalidWakeUpdate = 0;
 
     // Calculate the residual, and update the wakes
 
@@ -622,9 +626,33 @@ void VORTEX_TRAIL::UpdateWakeLocation(double WakeRelax, double &ResMax, double &
        Vec[1] = EdgeList_[i]->Velocity()[1];
        Vec[2] = EdgeList_[i]->Velocity()[2];
 
+       if ( !std::isfinite(Vec[0]) || !std::isfinite(Vec[1]) || !std::isfinite(Vec[2]) ) {
+
+          if ( !WarnedInvalidWakeUpdate ) {
+             printf("[ALERT] UpdateWakeLocation: non-finite edge velocity at node %d\n",i);
+             fflush(stdout);
+             WarnedInvalidWakeUpdate = 1;
+          }
+
+          continue;
+
+       }
+
        Mag = sqrt(vector_dot(Vec,Vec));
 
-       if ( Mag > 0. ) {
+       if ( !std::isfinite(Mag) ) {
+
+          if ( !WarnedInvalidWakeUpdate ) {
+             printf("[ALERT] UpdateWakeLocation: non-finite Mag from edge velocity at node %d\n",i);
+             fflush(stdout);
+             WarnedInvalidWakeUpdate = 1;
+          }
+
+          continue;
+
+       }
+
+       if ( Mag > kEps ) {
           
           Vec[0] /= Mag;
           Vec[1] /= Mag;
@@ -633,6 +661,18 @@ void VORTEX_TRAIL::UpdateWakeLocation(double WakeRelax, double &ResMax, double &
        }
        
        dS = S_[0][i+1] - S_[0][i];
+
+       if ( !std::isfinite(dS) ) {
+
+          if ( !WarnedInvalidWakeUpdate ) {
+             printf("[ALERT] UpdateWakeLocation: non-finite dS at node %d\n",i);
+             fflush(stdout);
+             WarnedInvalidWakeUpdate = 1;
+          }
+
+          continue;
+
+       }
 
        // Only take velocities in the free stream and rotor wash directions
  
@@ -653,10 +693,34 @@ void VORTEX_TRAIL::UpdateWakeLocation(double WakeRelax, double &ResMax, double &
           Vec[0] = EdgeList_[i]->LocalFreeStreamVelocity(0) + Dot2*RotorThrustVector_[0];
           Vec[1] = EdgeList_[i]->LocalFreeStreamVelocity(1) + Dot2*RotorThrustVector_[1];
           Vec[2] = EdgeList_[i]->LocalFreeStreamVelocity(2) + Dot2*RotorThrustVector_[2];
+
+          if ( !std::isfinite(Vec[0]) || !std::isfinite(Vec[1]) || !std::isfinite(Vec[2]) ) {
+
+             if ( !WarnedInvalidWakeUpdate ) {
+                printf("[ALERT] UpdateWakeLocation: non-finite rotor-projected velocity at node %d\n",i);
+                fflush(stdout);
+                WarnedInvalidWakeUpdate = 1;
+             }
+
+             continue;
+
+          }
           
           Mag = sqrt(vector_dot(Vec,Vec));
+
+          if ( !std::isfinite(Mag) ) {
+
+             if ( !WarnedInvalidWakeUpdate ) {
+                printf("[ALERT] UpdateWakeLocation: non-finite rotor Mag at node %d\n",i);
+                fflush(stdout);
+                WarnedInvalidWakeUpdate = 1;
+             }
+
+             continue;
+
+          }
           
-          if ( Mag > 0. ) {
+          if ( Mag > kEps ) {
              
              Vec[0] /= Mag;
              Vec[1] /= Mag;
@@ -680,6 +744,18 @@ void VORTEX_TRAIL::UpdateWakeLocation(double WakeRelax, double &ResMax, double &
           Dir[2] = -RotorThrustVector_[2];
           
           Mag = sqrt(vector_dot(Dir,Dir));
+
+          if ( !std::isfinite(Mag) || Mag <= kEps ) {
+
+             if ( !WarnedInvalidWakeUpdate ) {
+                printf("[ALERT] UpdateWakeLocation: invalid thrust direction norm at node %d\n",i);
+                fflush(stdout);
+                WarnedInvalidWakeUpdate = 1;
+             }
+
+             continue;
+
+          }
           
           Dir[0] /= Mag;
           Dir[1] /= Mag;
@@ -691,6 +767,18 @@ void VORTEX_TRAIL::UpdateWakeLocation(double WakeRelax, double &ResMax, double &
           Residual[1] = Dot * Dir[1];
           Residual[2] = Dot * Dir[2];         
            
+       }
+
+       if ( !std::isfinite(Residual[0]) || !std::isfinite(Residual[1]) || !std::isfinite(Residual[2]) ) {
+
+          if ( !WarnedInvalidWakeUpdate ) {
+             printf("[ALERT] UpdateWakeLocation: non-finite residual at node %d\n",i);
+             fflush(stdout);
+             WarnedInvalidWakeUpdate = 1;
+          }
+
+          continue;
+
        }
 
        ResMax = MAX(ResMax,ABS(Residual[0]));
@@ -706,6 +794,20 @@ void VORTEX_TRAIL::UpdateWakeLocation(double WakeRelax, double &ResMax, double &
        NodeList_[i+1].x() -= Relax*Residual[0];
        NodeList_[i+1].y() -= Relax*Residual[1];
        NodeList_[i+1].z() -= Relax*Residual[2];
+
+       if ( !std::isfinite(NodeList_[i+1].x()) || !std::isfinite(NodeList_[i+1].y()) || !std::isfinite(NodeList_[i+1].z()) ) {
+
+          if ( !WarnedInvalidWakeUpdate ) {
+             printf("[ALERT] UpdateWakeLocation: non-finite wake node coordinates after update at node %d\n",i+1);
+             fflush(stdout);
+             WarnedInvalidWakeUpdate = 1;
+          }
+
+          NodeList_[i+1].x() = NodeList_[i].x();
+          NodeList_[i+1].y() = NodeList_[i].y();
+          NodeList_[i+1].z() = NodeList_[i].z();
+
+       }
  
     }
     
