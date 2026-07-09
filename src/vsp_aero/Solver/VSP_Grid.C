@@ -277,12 +277,21 @@ void VSP_GRID::CalculateTriNormalsAndCentroids(void)
        vector_cross(vec1,vec2,vec3);
        
        mag = sqrt(vector_dot(vec3,vec3));
-       
-       vec3[0] /= mag;
-       vec3[1] /= mag;
-       vec3[2] /= mag;
-       
-       if ( mag <= 0. ) {
+
+       if ( mag > 1.0e-14 ) {
+
+          vec3[0] /= mag;
+          vec3[1] /= mag;
+          vec3[2] /= mag;
+
+       }
+
+       else {
+
+          vec3[0] = 0.;
+          vec3[1] = 0.;
+          vec3[2] = 0.;
+
           
           printf("Loop: %d \n",i);          
           printf("Mag: %lf \n",mag);
