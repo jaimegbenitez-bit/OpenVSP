@@ -7,54 +7,8 @@
 #include "VSP_Grid.H"
 
 #include <cmath>
-#include <cstdio>
-#include <cstdlib>
 
 #include "START_NAME_SPACE.H"
-
-namespace {
-
-int VSPAERO_NaNTraceEnabled()
-{
-   static int Initialized = 0;
-   static int Enabled = 0;
-
-   if ( !Initialized ) {
-      const char* Env = getenv("VSPAERO_NAN_TRACE");
-      Enabled = ( Env != NULL && Env[0] != '\0' && Env[0] != '0' );
-      Initialized = 1;
-   }
-
-   return Enabled;
-}
-
-void VSPAERO_ReportLoopNonFinite(int Loop, int SurfaceID, int Node1, int Node2, int Node3, VSP_GRID& Grid, const char* Reason, double Mag)
-{
-   static int Reports = 0;
-
-   if ( Reports >= 80 ) {
-      return;
-   }
-
-   ++Reports;
-
-   printf("[NAN_TRACE][Grid] %s | Loop=%d Surface=%d Mag=%g Nodes=(%d,%d,%d)\\n",
-         Reason,
-         Loop,
-         SurfaceID,
-         Mag,
-         Node1,
-         Node2,
-         Node3);
-
-   printf("[NAN_TRACE][Grid] N1=(%g,%g,%g) N2=(%g,%g,%g) N3=(%g,%g,%g)\\n",
-         Grid.NodeList(Node1).x(), Grid.NodeList(Node1).y(), Grid.NodeList(Node1).z(),
-         Grid.NodeList(Node2).x(), Grid.NodeList(Node2).y(), Grid.NodeList(Node2).z(),
-         Grid.NodeList(Node3).x(), Grid.NodeList(Node3).y(), Grid.NodeList(Node3).z());
-   fflush(stdout);
-}
-
-}
 
 /*##############################################################################
 #                                                                              #
@@ -341,30 +295,11 @@ void VSP_GRID::CalculateTriNormalsAndCentroids(void)
           vec3[2] = 0.;
 
           
-          printf("Loop: %d \n",i);
+          printf("Loop: %d \n",i);          
           printf("Mag: %lf \n",mag);
           printf("Node1: %d --> %f %f %f \n",Node1,NodeList(Node1).x(),NodeList(Node1).y(),NodeList(Node1).z());
           printf("Node2: %d --> %f %f %f \n",Node2,NodeList(Node2).x(),NodeList(Node2).y(),NodeList(Node2).z());
           printf("Node3: %d --> %f %f %f \n",Node3,NodeList(Node3).x(),NodeList(Node3).y(),NodeList(Node3).z());
-
-          if ( VSPAERO_NaNTraceEnabled() ) {
-
-             const int SurfaceID = LoopList(i).SurfaceID();
-             const int NonFiniteNode =
-                ( !std::isfinite(NodeList(Node1).x()) || !std::isfinite(NodeList(Node1).y()) || !std::isfinite(NodeList(Node1).z()) ||
-                  !std::isfinite(NodeList(Node2).x()) || !std::isfinite(NodeList(Node2).y()) || !std::isfinite(NodeList(Node2).z()) ||
-                  !std::isfinite(NodeList(Node3).x()) || !std::isfinite(NodeList(Node3).y()) || !std::isfinite(NodeList(Node3).z()) );
-
-             VSPAERO_ReportLoopNonFinite(i,
-                                         SurfaceID,
-                                         Node1,
-                                         Node2,
-                                         Node3,
-                                         *this,
-                                         NonFiniteNode ? "non-finite loop node coordinates" : "degenerate loop (near-zero area)",
-                                         mag);
-
-          }
           
        }
        
