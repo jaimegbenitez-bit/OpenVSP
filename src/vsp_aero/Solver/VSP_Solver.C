@@ -6,6 +6,9 @@
 
 #include "VSP_Solver.H"
 
+#include <cmath>
+#include <iostream>
+
 #include "START_NAME_SPACE.H"
 
 /*##############################################################################
