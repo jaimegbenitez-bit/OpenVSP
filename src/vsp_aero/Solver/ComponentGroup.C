@@ -32,6 +32,7 @@ COMPONENT_GROUP::COMPONENT_GROUP(void)
     OVec_[0] = OVec_[1] = OVec_[2] = 0.;
     RVec_[0] = RVec_[1] = RVec_[2] = 0.;
     TVec_[0] = TVec_[1] = TVec_[2] = 0.;
+   Position_[0] = Position_[1] = Position_[2] = 0.;
         
     UserInputVelocity_[0] = UserInputVelocity_[1] = UserInputVelocity_[2] = 0.;
 
@@ -211,6 +212,7 @@ COMPONENT_GROUP::~COMPONENT_GROUP(void)
     OVec_[0] = OVec_[1] = OVec_[2] = 0.;
     RVec_[0] = RVec_[1] = RVec_[2] = 0.;
     TVec_[0] = TVec_[1] = TVec_[2] = 0.;
+   Position_[0] = Position_[1] = Position_[2] = 0.;
 
     Velocity_(1) = Velocity_(2) = Velocity_(3) = 0.;
     
@@ -402,6 +404,10 @@ COMPONENT_GROUP &COMPONENT_GROUP::operator=(const COMPONENT_GROUP &ComponentGrou
     TVec_[0] = ComponentGroup.TVec_[0];
     TVec_[1] = ComponentGroup.TVec_[1];
     TVec_[2] = ComponentGroup.TVec_[2];
+
+   Position_[0] = ComponentGroup.Position_[0];
+   Position_[1] = ComponentGroup.Position_[1];
+   Position_[2] = ComponentGroup.Position_[2];
  
     UserInputVelocity_[0] = ComponentGroup.UserInputVelocity_[0];
     UserInputVelocity_[1] = ComponentGroup.UserInputVelocity_[1];
@@ -692,6 +698,10 @@ void COMPONENT_GROUP::ZeroOutTotals(void)
    
     TotalRotationAngle_ = 0.;
 
+   Position_[0] = 0.;
+   Position_[1] = 0.;
+   Position_[2] = 0.;
+
     TotalQuat_(0) = 0.;
     TotalQuat_(1) = 0.;
     TotalQuat_(2) = 0.;
@@ -915,6 +925,10 @@ void COMPONENT_GROUP::UpdateDynamicSystem(void)
     TVec_[0] = Velocity_(1) * DeltaTime_;
     TVec_[1] = Velocity_(2) * DeltaTime_;
     TVec_[2] = Velocity_(3) * DeltaTime_;
+
+   Position_[0] += TVec_[0];
+   Position_[1] += TVec_[1];
+   Position_[2] += TVec_[2];
 
     // Moments
 
@@ -1259,6 +1273,10 @@ void COMPONENT_GROUP::LoadData(FILE *File)
     LinearMomentum_(1) = Mass_ * UserInputVelocity_[0];
     LinearMomentum_(2) = Mass_ * UserInputVelocity_[1];
     LinearMomentum_(3) = Mass_ * UserInputVelocity_[2];
+
+   Position_[0] = 0.;
+   Position_[1] = 0.;
+   Position_[2] = 0.;
     
     // Initialize total quat
 
